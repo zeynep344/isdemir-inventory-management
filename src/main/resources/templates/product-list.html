@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="tr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Product Listesi</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+
+    <!-- CSRF (varsa) -->
+    <meta th:if="${_csrf != null}" name="_csrf" th:content="${_csrf.token}">
+    <meta th:if="${_csrf != null}" name="_csrf_header" th:content="${_csrf.headerName}">
+
+    <style>
+        :root{
+            --bg:#0d0f12;
+            --panel:rgba(20,22,27,.92);
+            --panel-border:rgba(255,255,255,.08);
+            --text:#ffffff;
+            --muted:rgba(255,255,255,.65);
+            --input-bg:rgba(255,255,255,.06);
+            --input-bg-focus:rgba(255,255,255,.12);
+            --input-border:rgba(255,255,255,.22);
+            --focus:#6ea8fe;
+            --accent:#ff4d4d;
+            --accent-2:#cc1f1f;
+            --badge:#f5f7fa;
+        }
+
+        body {
+            background: radial-gradient(80rem 80rem at -10% -10%, #171922 0, transparent 60%), var(--bg);
+            color: var(--text);
+        }
+
+        .card {
+            background:var(--panel);
+            border:1px solid var(--panel-border);
+            border-radius:16px
+        }
+
+        .form-label {
+            color:#fff!important;
+            font-weight:700;
+            font-size:1rem;
+            margin-bottom:.4rem;
+            text-shadow:0 0 2px rgba(0,0,0,.55)
+        }
+
+        .form-control,
+        .form-select {
+            background:var(--input-bg);
+            color:#fff;
+            border:1px solid var(--input-border);
+            border-radius:10px;
+            padding:.65rem .8rem
+        }
+
+        .form-control::placeholder {
+            color:var(--muted)
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            background:var(--input-bg-focus);
+            border-color:var(--focus);
+            box-shadow:0 0 0 .18rem rgba(110,168,254,.18);
+            outline:0
+        }
+
+        .btn-accent {
+            background:linear-gradient(90deg,var(--accent),var(--accent-2));
+            border:none;
+            color:#fff;
+            font-weight:700;
+            padding:.6rem 1rem;
+            border-radius:12px;
+            box-shadow:0 6px 18px rgba(255,77,77,.18)
+        }
+
+        .btn-accent:hover {
+            filter:brightness(1.06)
+        }
+
+        .table-dark {
+            --bs-table-bg: rgba(13,15,18,.65);
+            --bs-table-striped-bg: rgba(255,255,255,.03);
+            --bs-table-hover-bg: rgba(255,255,255,.06)
+        }
+
+        .table-dark thead th {
+            color:#fff!important;
+            font-weight:800;
+            font-size:1rem;
+            text-shadow:0 0 3px rgba(0,0,0,.85);
+            border-bottom-color:rgba(255,255,255,.12)
+        }
+
+        .table-dark tbody td {
+            vertical-align:middle
+        }
+
+        .badge-type {
+            text-transform:uppercase;
+            letter-spacing:.35px;
+            background:var(--badge);
+            color:#111;
+            padding:.35rem .55rem;
+            border-radius:.6rem;
+            font-weight:700
+        }
+
+        .fade-out {
+            animation:fadeout 3.5s ease-in forwards
+        }
+
+        @keyframes fadeout {
+            0%{opacity:1}
+            70%{opacity:1}
+            100%{opacity:0}
+        }
+
+        .extra-col { display:none; }
+        .extra-col.show { display: table-cell !important; }
+
+        .form-select option { color:#000; background:#f5f5f5; }
+        .form-select option:checked { background:#e0e0e0; color:#000; }
+    </style>
+</head>
+<body>
+<div class="container py-4 py-md-5">
+
+    <!-- flash mesajları -->
+    <div th:if="${ok}" class="alert alert-success fade-out" th:text="${ok}"></div>
+    <div th:if="${error}" class="alert alert-danger" th:text="${error}"></div>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="m-0 fw-bold">Product Listesi</h3>
+        <a class="btn btn-accent" id="btnNewProduct" th:href="@{/products/new}">+ Yeni Ürün</a>
+    </div>
+
+    <!-- ROL BAYRAKLARI: controller’dan gelen boolean’ları data-* ile JS’ye ver -->
+    <div id="roleFlags"
+         th:attr="data-can-create=${canCreate},data-can-edit=${canEdit},data-can-delete=${canDelete}"
+         hidden></div>
+
+    <!-- Ürün Tipi Seç -->
+    <div class="mb-3">
+        <label class="form-label">Ürün Tipi</label>
+        <select id="typeSelect"
+                class="form-select"
+                th:value="${selectedType}"
+                th:attr="data-selected-type=${selectedType}"
+                onchange="applyType()">
+            <option value="all">Tümü</option>
+            <option th:each="t : ${productTypes}"
+                    th:value="${#strings.toLowerCase(t)}"
+                    th:text="${t}"></option>
+        </select>
+    </div>
+
+    <div class="card p-0">
+        <div class="table-responsive">
+            <table class="table table-dark table-striped table-hover mb-0 align-middle" id="productTable">
+                <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Provider</th>
+                    <th>Material</th>
+                    <th>Status</th>
+                    <th>Type</th>
+
+                    <th class="extra-col" data-type="hot_coil">Hot • Tensile</th>
+                    <th class="extra-col" data-type="hot_coil">Hot • Elongation</th>
+                    <th class="extra-col" data-type="hot_coil">Hot • Thickness</th>
+
+                    <th class="extra-col" data-type="cold_coil">Cold • Yield</th>
+                    <th class="extra-col" data-type="cold_coil">Cold • Elongation</th>
+                    <th class="extra-col" data-type="cold_coil">Cold • Thickness</th>
+
+                    <th class="extra-col" data-type="plates">Plate • Thickness</th>
+                    <th class="extra-col" data-type="plates">Plate • Length</th>
+                    <th class="extra-col" data-type="plates">Plate • Width</th>
+
+                    <th class="text-end">İşlemler</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="p : ${products}" th:attr="data-row-type=${#strings.toLowerCase(p.productType)}">
+                    <td th:text="${p.productId}">1</td>
+                    <td th:text="${p.provider}">Provider</td>
+                    <td th:text="${p.material}">Material</td>
+                    <td th:text="${p.status}">ACTIVE</td>
+                    <td><span class="badge-type" th:text="${p.productType}">hot_coil</span></td>
+
+                    <!-- hot coil alanları -->
+                    <td class="extra-col" data-type="hot_coil"
+                        th:text="${hotMap != null and hotMap.containsKey(p.productId) ? hotMap.get(p.productId).tensileStr : ''}"></td>
+                    <td class="extra-col" data-type="hot_coil"
+                        th:text="${hotMap != null and hotMap.containsKey(p.productId) ? hotMap.get(p.productId).elongation : ''}"></td>
+                    <td class="extra-col" data-type="hot_coil"
+                        th:text="${hotMap != null and hotMap.containsKey(p.productId) ? hotMap.get(p.productId).thickness : ''}"></td>
+
+                    <!-- cold coil alanları -->
+                    <td class="extra-col" data-type="cold_coil"
+                        th:text="${coldMap != null and coldMap.containsKey(p.productId) ? coldMap.get(p.productId).yieldStr : ''}"></td>
+                    <td class="extra-col" data-type="cold_coil"
+                        th:text="${coldMap != null and coldMap.containsKey(p.productId) ? coldMap.get(p.productId).elongation : ''}"></td>
+                    <td class="extra-col" data-type="cold_coil"
+                        th:text="${coldMap != null and coldMap.containsKey(p.productId) ? coldMap.get(p.productId).thickness : ''}"></td>
+
+                    <!-- plates alanları -->
+                    <td class="extra-col" data-type="plates"
+                        th:text="${plateMap != null and plateMap.containsKey(p.productId) ? plateMap.get(p.productId).thickness : ''}"></td>
+                    <td class="extra-col" data-type="plates"
+                        th:text="${plateMap != null and plateMap.containsKey(p.productId) ? plateMap.get(p.productId).length : ''}"></td>
+                    <td class="extra-col" data-type="plates"
+                        th:text="${plateMap != null and plateMap.containsKey(p.productId) ? plateMap.get(p.productId).width : ''}"></td>
+
+                    <td class="text-end">
+                        <a class="btn btn-sm btn-outline-light me-2 btn-edit"
+                           th:href="@{|/products/edit/${p.productId}|}">Düzenle</a>
+                        <form th:action="@{|/products/${p.productId}/delete|}" method="post" style="display:inline" class="form-delete">
+                            <input th:if="${_csrf != null}" type="hidden"
+                                   th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                            <button type="submit" class="btn btn-sm btn-outline-danger btn-delete">Sil</button>
+                        </form>
+                    </td>
+                </tr>
+
+                <tr th:if="${#lists.isEmpty(products)}">
+                    <td colspan="15" class="text-center text-muted py-4">Kayıt bulunamadı.</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // ---- ROL BAYRAKLARI (data-* üzerinden) ----
+    (function(){
+        const flagsEl   = document.getElementById('roleFlags');
+        const CAN_CREATE = (flagsEl?.dataset.canCreate === 'true');
+        const CAN_EDIT   = (flagsEl?.dataset.canEdit   === 'true');
+        const CAN_DELETE = (flagsEl?.dataset.canDelete === 'true');
+
+        // Yeni ürün
+        const newBtn = document.getElementById("btnNewProduct");
+        if (newBtn) {
+            newBtn.addEventListener("click", (e) => {
+                if (!CAN_CREATE) {
+                    e.preventDefault();
+                    alert("Bu işlem için yetkiniz yoktur!");
+                }
+            });
+        }
+        // Edit
+        document.querySelectorAll(".btn-edit").forEach(btn => {
+            btn.addEventListener("click", (e) => {
+                if (!CAN_EDIT) {
+                    e.preventDefault();
+                    alert("Düzenleme işlemi için yetkiniz yoktur!");
+                }
+            });
+        });
+        // Delete
+        document.querySelectorAll(".form-delete").forEach(form => {
+            form.addEventListener("submit", (e) => {
+                if (!CAN_DELETE) {
+                    e.preventDefault();
+                    alert("Silme işlemi için yetkiniz yoktur!");
+                }
+            });
+        });
+    })();
+
+    // ---- Tip filtreleme ----
+    function norm(v){ return (v || '').toLowerCase(); }
+
+    function applyType(){
+        const select = document.getElementById('typeSelect');
+        const chosen = norm(select.value || select.getAttribute('data-selected-type') || 'all');
+
+        const extraCols = document.querySelectorAll('.extra-col');
+        extraCols.forEach(col => {
+            col.classList.remove('show');
+            if (chosen !== 'all' && norm(col.dataset.type) === chosen) {
+                col.classList.add('show');
+            }
+        });
+
+        const rows = document.querySelectorAll('#productTable tbody tr[data-row-type]');
+        rows.forEach(row => {
+            const rt = norm(row.dataset.rowType);
+            row.style.display = (chosen === 'all' || rt === chosen) ? '' : 'none';
+        });
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const select = document.getElementById('typeSelect');
+        const initial = norm(select.getAttribute('data-selected-type') || select.value || 'all');
+        select.value = initial;
+        applyType();
+    });
+</script>
+</body>
+</html>

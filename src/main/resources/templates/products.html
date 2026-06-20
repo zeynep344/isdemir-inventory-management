@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="https://www.thymeleaf.org/extras/spring-security"
+      lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Ürün Listesi</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        :root{
+            --bg:#0c0d10; --card:#16181f; --muted:#9aa0ab; --white:#ffffff;
+            --red:#e11d2e; --red-2:#b3121f; --accent:#22252f; --shadow:0 20px 50px rgba(0,0,0,.45);
+            --radius:14px;
+        }
+        html,body{ background:var(--bg); color:var(--white); }
+        .container { max-width:1200px; }
+
+        /* Banner */
+        .hero{
+            position:relative; overflow:hidden; border-radius:var(--radius);
+            background:
+                    linear-gradient(180deg, rgba(225,29,46,.55), rgba(12,13,16,.9)),
+                    url("/images/isdemir.jpg") center/cover no-repeat;
+            min-height:180px; box-shadow:var(--shadow); border:1px solid var(--accent); margin-top:16px;
+        }
+        .hero .title{ position:absolute; left:24px; bottom:22px; font-weight:800; letter-spacing:.5px; font-size:28px; }
+
+        /* Kart */
+        .cardx{ background:var(--card); border:1px solid var(--accent); border-radius:var(--radius); box-shadow:var(--shadow); }
+        .toolbar{ display:flex; justify-content:space-between; align-items:center; padding:16px 18px; border-bottom:1px solid var(--accent); }
+        .muted{ color:var(--muted); }
+
+        /* Butonlar genel */
+        .btn-red{ border:0; background:linear-gradient(180deg,var(--red),var(--red-2)); color:#fff; border-radius:12px; padding:.55rem .9rem; font-weight:600; box-shadow:0 6px 14px rgba(225,29,46,.35); }
+
+        /* Tablo */
+        table{ width:100%; border-collapse:separate; border-spacing:0; }
+        thead th{ background:#1c1f28; color:#d9dde6; font-weight:700; padding:12px 14px; border-bottom:1px solid var(--accent); }
+        tbody td{ padding:12px 14px; border-bottom:1px solid var(--accent); color:#e9edf6; }
+        tbody tr:hover td{ background:#151822; }
+
+        /* Tip rozeti */
+        .badge-type{ background:#1f2430; color:#fff; border:1px solid var(--accent); padding:.2rem .55rem; border-radius:999px; font-size:.78rem; font-weight:700; letter-spacing:.3px; }
+
+        /* Detay satırı */
+        .detail-row td{ background:#12141b; }
+        .detail-box{ display:flex; gap:18px; flex-wrap:wrap; }
+        .detail{ background:#0f1118; border:1px solid var(--accent); border-radius:12px; padding:12px 14px; min-width:260px; }
+        .detail h6{ margin:0 0 6px; color:#ffccd1; font-weight:700; }
+        .detail ul{ margin:0; padding-left:18px; color:#cfd4df; }
+
+        /* İşlem sütunu: alt alta ve aynı boy */
+        .actions{ display:flex; flex-direction:column; align-items:flex-end; gap:8px; width:220px; }
+        .action-btn{ width:100%; padding:.5rem .8rem; border-radius:10px; font-weight:700; }
+        .btn-edit{ background:transparent; border:1px solid #f1a12b; color:#ffcc6e; }
+        .btn-delete{ background:transparent; border:1px solid #ee3e4c; color:#ff5b68; }
+        .btn-secondary{ border:1px solid var(--accent); background:transparent; color:#e9edf6; }
+
+        /* Sil onay kutusu */
+        .confirm-box{ width:100%; background:#12141b; border:1px solid #232838; border-radius:10px; padding:8px; }
+        .confirm-box .title{ font-size:.9rem; color:#d9dde6; margin-bottom:6px; }
+        .confirm-box .btn{ width:100%; margin-bottom:6px; }
+        .alert-success{ background:rgba(46,204,113,.12); color:#8ef0b0; border:1px solid rgba(46,204,113,.3); }
+
+        /* Yetki Uyarı Modal Stili */
+        .modal-content.no-auth {
+            background: linear-gradient(180deg, #2c0d0d, #1a0b0b);
+            color: #fff;
+            border: 2px solid #ff4d4d;
+            animation: shake 0.4s;
+        }
+        .modal-content.no-auth .modal-title {
+            color: #ff4d4d;
+            font-weight: 700;
+        }
+        .modal-content.no-auth .btn-secondary {
+            background-color: #ff4d4d;
+            border: none;
+            font-weight: bold;
+        }
+        .modal-content.no-auth .btn-secondary:hover {
+            background-color: #d93636;
+        }
+        @keyframes shake {
+            0% { transform: translateX(0px); }
+            25% { transform: translateX(-5px); }
+            50% { transform: translateX(5px); }
+            75% { transform: translateX(-5px); }
+            100% { transform: translateX(0px); }
+        }
+
+        /* Dinamik kolonlar: başlangıçta gizli */
+        .col-hot,.col-cold,.col-plate{display:none;}
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="hero mb-4"><div class="title">Ürün Listesi</div></div>
+
+    <div th:if="${ok}" class="alert alert-success" th:text="${ok}"></div>
+
+    <div class="cardx">
+        <div class="toolbar">
+            <div class="muted">Toplam <b th:text="${productCount}">0</b> kayıt</div>
+
+            <!-- Tip buton grubu: Tümü / Hot / Cold / Plate -->
+            <div class="btn-group" role="group" aria-label="Tip Görünümü" style="margin-right:auto; margin-left:18px;">
+                <button type="button" class="btn btn-sm btn-secondary" data-view="all">Tümü</button>
+                <button type="button" class="btn btn-sm btn-secondary" data-view="hot_coil">Hot</button>
+                <button type="button" class="btn btn-sm btn-secondary" data-view="cold_coil">Cold</button>
+                <button type="button" class="btn btn-sm btn-secondary" data-view="plate">Plate</button>
+            </div>
+
+            <!-- ADMIN -->
+            <a sec:authorize="hasRole('ADMIN')" th:href="@{/products/new}" class="btn-red">+ Yeni Ürün</a>
+            <!-- USER -->
+            <button sec:authorize="hasRole('USER')" type="button" class="btn-red" onclick="showNoAuth()">+ Yeni Ürün</button>
+        </div>
+
+        <div class="p-3">
+            <div th:if="${productCount == 0}" class="alert alert-secondary" style="background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.12); color:#d7dbe6;">
+                Kayıtlı ürün bulunamadı.
+            </div>
+
+            <table th:if="${productCount > 0}">
+                <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Provider</th>
+                    <th>Type</th>
+                    <th>Material</th>
+                    <th>Created</th>
+                    <th>Status</th>
+
+                    <!-- HOT COIL başlıkları -->
+                    <th class="col-hot">Hot: Tensile</th>
+                    <th class="col-hot">Hot: Elongation</th>
+                    <th class="col-hot">Hot: Thickness</th>
+
+                    <!-- COLD COIL başlıkları -->
+                    <th class="col-cold">Cold: Yield</th>
+                    <th class="col-cold">Cold: Elongation</th>
+                    <th class="col-cold">Cold: Thickness</th>
+
+                    <!-- PLATE başlıkları -->
+                    <th class="col-plate">Plate: Thickness</th>
+                    <th class="col-plate">Plate: Length</th>
+                    <th class="col-plate">Plate: Width</th>
+
+                    <th style="width:260px">İşlemler</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="p : ${products}">
+                    <td th:text="${p.productId}">1</td>
+                    <td th:text="${p.provider}">İsdemir</td>
+                    <td><span class="badge-type" th:text="${p.productType.toUpperCase()}">PLATE</span></td>
+                    <td th:text="${p.material}">Çelik</td>
+                    <td th:text="${p.createdAt}">2025-08-11T12:00</td>
+                    <td th:text="${p.status}">ACTIVE</td>
+
+                    <!-- HOT COIL hücreleri -->
+                    <td class="col-hot"
+                        th:text="${p.productType == 'hot_coil' and hotMap != null and hotMap.containsKey(p.productId)
+                                 ? hotMap.get(p.productId).tensileStr : '-'}">-</td>
+                    <td class="col-hot"
+                        th:text="${p.productType == 'hot_coil' and hotMap != null and hotMap.containsKey(p.productId)
+                                 ? hotMap.get(p.productId).elongation : '-'}">-</td>
+                    <td class="col-hot"
+                        th:text="${p.productType == 'hot_coil' and hotMap != null and hotMap.containsKey(p.productId)
+                                 ? hotMap.get(p.productId).thickness : '-'}">-</td>
+
+                    <!-- COLD COIL hücreleri -->
+                    <td class="col-cold"
+                        th:text="${p.productType == 'cold_coil' and coldMap != null and coldMap.containsKey(p.productId)
+                                 ? coldMap.get(p.productId).yieldStr : '-'}">-</td>
+                    <td class="col-cold"
+                        th:text="${p.productType == 'cold_coil' and coldMap != null and coldMap.containsKey(p.productId)
+                                 ? coldMap.get(p.productId).elongation : '-'}">-</td>
+                    <td class="col-cold"
+                        th:text="${p.productType == 'cold_coil' and coldMap != null and coldMap.containsKey(p.productId)
+                                 ? coldMap.get(p.productId).thickness : '-'}">-</td>
+
+                    <!-- PLATE hücreleri -->
+                    <td class="col-plate"
+                        th:text="${p.productType == 'plate' and plateMap != null and plateMap.containsKey(p.productId)
+                                 ? plateMap.get(p.productId).thickness : '-'}">-</td>
+                    <td class="col-plate"
+                        th:text="${p.productType == 'plate' and plateMap != null and plateMap.containsKey(p.productId)
+                                 ? plateMap.get(p.productId).length : '-'}">-</td>
+                    <td class="col-plate"
+                        th:text="${p.productType == 'plate' and plateMap != null and plateMap.containsKey(p.productId)
+                                 ? plateMap.get(p.productId).width : '-'}">-</td>
+
+                    <td class="text-end">
+                        <div class="actions">
+                            <button type="button" class="action-btn btn btn-secondary"
+                                    th:onclick="'toggleDetails(' + ${p.productId} + ')'">
+                                Özellikler • <span th:text="${p.productType.toUpperCase()}"></span>
+                            </button>
+
+                            <!-- ADMIN -->
+                            <div sec:authorize="hasRole('ADMIN')" class="w-100">
+                                <!-- EDIT link düzeltildi: /products/{id}/edit -->
+                                <a th:href="@{|/products/${p.productId}/edit|}" class="action-btn btn btn-edit">Düzenle</a>
+
+                                <button type="button" class="action-btn btn btn-delete"
+                                        th:onclick="'showConfirm(' + ${p.productId} + ')'">
+                                    Sil
+                                </button>
+
+                                <div th:id="'confirm-'+${p.productId}" class="confirm-box" style="display:none;">
+                                    <div class="title">Silinsin mi?</div>
+                                    <form th:action="@{|/products/${p.productId}/delete|}" method="post" class="mb-1">
+                                        <input type="hidden" th:if="${_csrf != null}"
+                                               th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                                        <button type="submit" class="btn btn-danger">Evet, Sil</button>
+                                    </form>
+                                    <button type="button" class="btn btn-outline-light"
+                                            th:onclick="'cancelConfirm(' + ${p.productId} + ')'">
+                                        Vazgeç
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- USER -->
+                            <div sec:authorize="hasRole('USER')" class="w-100">
+                                <button type="button" class="action-btn btn btn-edit" onclick="showNoAuth()">Düzenle</button>
+                                <button type="button" class="action-btn btn btn-delete" onclick="showNoAuth()">Sil</button>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+
+                <!-- Detay satırı -->
+                <tr class="detail-row" th:each="pDet : ${products}" th:id="'det-'+${pDet.productId}" style="display:none;">
+                    <!-- colspan JS ile ayarlanacak -->
+                    <td colspan="16">
+                        <div class="detail-box">
+                            <!-- HOT COIL -->
+                            <div class="detail"
+                                 th:if="${pDet.productType == 'hot_coil' and hotMap != null and hotMap.containsKey(pDet.productId)}">
+                                <h6>Hot Coil</h6>
+                                <ul>
+                                    <li>Tensile Str: <span th:text="${hotMap.get(pDet.productId).tensileStr}">-</span></li>
+                                    <li>Elongation:  <span th:text="${hotMap.get(pDet.productId).elongation}">-</span></li>
+                                    <li>Thickness:   <span th:text="${hotMap.get(pDet.productId).thickness}">-</span></li>
+                                </ul>
+                            </div>
+
+                            <!-- COLD COIL -->
+                            <div class="detail"
+                                 th:if="${pDet.productType == 'cold_coil' and coldMap != null and coldMap.containsKey(pDet.productId)}">
+                                <h6>Cold Coil</h6>
+                                <ul>
+                                    <li>Yield Str:   <span th:text="${coldMap.get(pDet.productId).yieldStr}">-</span></li>
+                                    <li>Elongation:  <span th:text="${coldMap.get(pDet.productId).elongation}">-</span></li>
+                                    <li>Thickness:   <span th:text="${coldMap.get(pDet.productId).thickness}">-</span></li>
+                                </ul>
+                            </div>
+
+                            <!-- PLATE -->
+                            <div class="detail"
+                                 th:if="${pDet.productType == 'plate' and plateMap != null and plateMap.containsKey(pDet.productId)}">
+                                <h6>Plate</h6>
+                                <ul>
+                                    <li>Thickness:   <span th:text="${plateMap.get(pDet.productId).thickness}">-</span></li>
+                                    <li>Length:      <span th:text="${plateMap.get(pDet.productId).length}">-</span></li>
+                                    <li>Width:       <span th:text="${plateMap.get(pDet.productId).width}">-</span></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="noAuthModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content no-auth">
+            <div class="modal-header">
+                <h5 class="modal-title">🚫 Yetki Uyarısı</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Kapat"></button>
+            </div>
+            <div class="modal-body">
+                Bu işlemi yapmaya yetkiniz yoktur.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tamam</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleDetails(id){
+        var row = document.getElementById('det-' + id);
+        if (!row) return;
+        row.style.display = (row.style.display === 'none' || row.style.display === '') ? 'table-row' : 'none';
+    }
+    function showConfirm(id){
+        var box = document.getElementById('confirm-' + id);
+        if (box) box.style.display = 'block';
+    }
+    function cancelConfirm(id){
+        var box = document.getElementById('confirm-' + id);
+        if (box) box.style.display = 'none';
+    }
+    function showNoAuth(){
+        var m = new bootstrap.Modal(document.getElementById('noAuthModal'));
+        m.show();
+    }
+
+    /* --- Dinamik kolon görünümü --- */
+    function applyTypeView(type) {
+        const hot = document.querySelectorAll('.col-hot');
+        const cold = document.querySelectorAll('.col-cold');
+        const plate = document.querySelectorAll('.col-plate');
+
+        // Hepsini gizle
+        [hot, cold, plate].forEach(nl => nl.forEach(el => el.style.display = 'none'));
+
+        // Seçime göre göster
+        if (type === 'all') {
+            [hot, cold, plate].forEach(nl => nl.forEach(el => el.style.display = 'table-cell'));
+        } else if (type === 'hot_coil') {
+            hot.forEach(el => el.style.display = 'table-cell');
+        } else if (type === 'cold_coil') {
+            cold.forEach(el => el.style.display = 'table-cell');
+        } else if (type === 'plate') {
+            plate.forEach(el => el.style.display = 'table-cell');
+        }
+
+        // Görünür th sayısına göre detail-row colspan ayarla
+        const visibleHeaders = Array.from(document.querySelectorAll('thead th'))
+            .filter(th => th.offsetParent !== null).length;
+        document.querySelectorAll('tr.detail-row > td').forEach(td => td.colSpan = visibleHeaders);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        // Tip butonlarına tıklama
+        document.querySelectorAll('.btn-group [data-view]').forEach(btn => {
+            btn.addEventListener('click', function(){
+                // aktif buton stili
+                document.querySelectorAll('.btn-group [data-view]').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+
+                applyTypeView(this.getAttribute('data-view'));
+            });
+        });
+
+        // Varsayılan: Tümü
+        const defaultBtn = document.querySelector('.btn-group [data-view="all"]');
+        if (defaultBtn) { defaultBtn.classList.add('active'); }
+        applyTypeView('all');
+    });
+    /* --- /Dinamik kolon görünümü --- */
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

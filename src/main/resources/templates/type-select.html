@@ -1,0 +1,22 @@
+<!-- templates/product-type-select.html -->
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>Ürün Türü Seç</title>
+</head>
+<body>
+<h2>Yeni Ürün Türü Seç</h2>
+
+<p>Lütfen eklemek istediğiniz ürün türünü seçiniz:</p>
+
+<ul>
+  <li><a th:href="@{/hotcoils/new}">🔥 Hot Coil Ekle</a></li>
+  <li><a th:href="@{/coldcoils/new}">❄️ Cold Coil Ekle</a></li>
+  <li><a th:href="@{/plates/new}">🪵 Plate Ekle</a></li>
+</ul>
+
+<a th:href="@{/products}">⬅️ Ürün Listesine Dön</a>
+
+</body>
+</html>
